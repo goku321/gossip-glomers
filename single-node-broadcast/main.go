@@ -8,10 +8,13 @@ import (
 
 type server struct {
 	node *maelstrom.Node
+	neighbourNodes []string
+	msgIDReceived []float64
 }
 
 func newServer(node *maelstrom.Node) *server {
-	return &server{node}
+	node.NodeIDs()
+	return &server{node: node, msgIDReceived: []float64{}}
 }
 
 type messageType string
@@ -26,7 +29,12 @@ const (
 	TOPOLOGY messageType = "topology"
 )
 
-var msgIDReceived []float64
+func (s *server) initHandler(msg maelstrom.Message) error {
+	for _, nodeID := range s.node.NodeIDs() {
+		s.neighbourNodes = append(s.neighbourNodes, nodeID)
+	}
+	return s.node.Reply(msg, nil)
+}
 
 func (s *server) broadcastHandler(msg maelstrom.Message) error {
 	var body map[string]any
@@ -34,11 +42,12 @@ func (s *server) broadcastHandler(msg maelstrom.Message) error {
 		return err
 	}
 
-	msgIDReceived = append(msgIDReceived, body["message"].(float64))
+	s.msgIDReceived = append(s.msgIDReceived, body["message"].(float64))
 
 	reply := map[string]any{
 		"type": "broadcast_ok",
 	}
+	s.node.NodeIDs()
 	return s.node.Reply(msg, reply)
 }
 
@@ -50,7 +59,7 @@ func (s *server) readHandler(msg maelstrom.Message) error {
 
 	reply := map[string]any{
 		"type": "read_ok",
-		"messages": msgIDReceived,
+		"messages": s.msgIDReceived,
 	}
 	return s.node.Reply(msg, reply)
 }
